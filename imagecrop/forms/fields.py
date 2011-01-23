@@ -6,6 +6,8 @@ Created on Jan 19, 2011
 from django import forms
 from imagecrop.forms.widgets import ImageCropCoordinatesInput
 from django.core import validators
+from django.forms.fields import MultiValueField, ImageField
+from imagecrop.files import CroppedImageFile
 
 
 
@@ -14,15 +16,9 @@ class ImageCropCoordinatesField(forms.Field):
     This field holds the cropping coordinates for an image
     '''
     
-    widget = ImageCropCoordinatesInput('/static/flowers.jpg',aspect_ratio=(950.0/280.0),crop_image_height='400')
+    widget = ImageCropCoordinatesInput
     
     def __init__(self,*args,**kwargs):
-        #fields= (
-        #    IntegerField(),
-        #    IntegerField(),
-        #    IntegerField(),
-        #    IntegerField(),    
-        #)
         
         super(ImageCropCoordinatesField,self).__init__(*args,**kwargs)
         
@@ -31,6 +27,22 @@ class ImageCropCoordinatesField(forms.Field):
         if value in validators.EMPTY_VALUES:
             return None
         return value
+
+class CroppedImageField(MultiValueField):
+    
+    def __init__(self, *args, **kwargs):
+        
+        fields = (
+            ImageField(*args,**kwargs),
+            ImageCropCoordinatesField(*args,**kwargs),
+        )
+        
+        super(CroppedImageField,super).__init__(fields, *args, **kwargs)
+        
+    def compress(self,data_list):
+        if data_list:
+            return CroppedImageFile(data_list[0], crop_coords=data_list[1])
+        return None
         
     #def clean(self, value):
     #    """
