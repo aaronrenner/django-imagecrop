@@ -4,9 +4,9 @@ Created on Jan 22, 2011
 @author: arenner
 '''
 
-from django.core.files import File
+from django.core.files.images import ImageFile
 
-class CroppedImageFile(File):
+class CroppedImageFile(ImageFile):
     def __init__(self, file, name=None, crop_coords=None):
         self._crop_coords = crop_coords
         super(CroppedImageFile,self).__init__(file,name)

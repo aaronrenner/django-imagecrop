@@ -3,9 +3,13 @@ Created on Jan 19, 2011
 
 @author: arenner
 '''
-from django.forms.widgets import Widget, HiddenInput
+from django.forms.widgets import Widget, HiddenInput, MultiWidget, FileInput,\
+    Media, TextInput
 from django.template import Template, Context
 from django.utils.safestring import mark_safe 
+from imagecrop.files import CroppedImageFile
+from django.core.files.base import File
+from django.contrib.admin.widgets import AdminFileWidget
 
 class ImageCropCoordinatesInput(Widget):
     
@@ -25,7 +29,7 @@ class ImageCropCoordinatesInput(Widget):
     lower right coordinates
     '''
     
-    def __init__(self,image_url,attrs=None,aspect_ratio=0.0, crop_image_height=None, crop_image_width=None):
+    def __init__(self,attrs=None,aspect_ratio=0.0, crop_image_height=None, crop_image_width=None):
         '''
         Creates a new ImageCrop input
         
@@ -36,31 +40,31 @@ class ImageCropCoordinatesInput(Widget):
         '''
         super(ImageCropCoordinatesInput,self).__init__(attrs)
         
-        self.image_url=image_url
         self.aspect_ratio=aspect_ratio
         self.crop_image_height = crop_image_height
         self.crop_image_width = crop_image_width
         
-        
-        
-        
-    
-    #def decompress(self,value):
-    #    if value:
-    #        return value
-    #    return [None,None,None,None]
     
     def render(self, name, value, attrs=None):
+        """
+        Code for rendering this widget
+        
+        name - Name of form field
+        value - CroppedImageFile being cropped
+        """
+        
         if value is None:
-            value={}
+            return ""
+        
+        if not isinstance(value,CroppedImageFile):
+            raise ValueError("ImageCropCoordinatesInput requires a CroppedImageFile value")
         
         output = []
         
         final_attrs = self.build_attrs(attrs)
         id_ = final_attrs.get('id', None)
         
-        
-                      
+        #Only render image cropping util if image_url has been set             
         t = Template('''
         <script language="Javascript">
             jQuery(window).load(function(){
@@ -100,8 +104,8 @@ class ImageCropCoordinatesInput(Widget):
         c = Context({
                "id":id_,
                "aspectRatio":self.aspect_ratio,
-               "imageurl": self.image_url,
-               "coords": value,
+               "imageurl": value.url,
+               "coords": value.crop_coords,
                "boxWidth": self.crop_image_width,
                "boxHeight":self.crop_image_height,
                })
@@ -112,23 +116,84 @@ class ImageCropCoordinatesInput(Widget):
             
             if id_:
                 final_attrs = dict(final_attrs,id='%s_%s' % (id_, param))
-            output.append(widget.render("%s_%s" % (name,param),value.get(param,None),final_attrs))
+            coord = value.crop_coords.get(param,None) if value.crop_coords else None
+            output.append(widget.render("%s_%s" % (name,param),coord,final_attrs))
             
         return mark_safe(u''.join(output))
     
     def value_from_datadict(self, data, files, name):
+        # Returns a dictionary of the crop coordinates
+        # Note: it does not return the CroppedImageFile that was passed to the render method
         result = {}
+        
+        valueFound=False
         
         for param in ImageCropCoordinatesInput.COORD_PARAMS:
             result[param]= data.get(u"%s_%s" % (name,param,),None)
-        return result
+            if result[param]:
+                valueFound=True
+                
+        if valueFound:
+            return result
+        else: return None
         
         
 
-#class CroppedImageFileInput(MultiWidget):
-#    """
-#    Complete file upload with image cropper widget
-#    """
+class CroppedImageFileInput(MultiWidget):
+    """
+    Complete file upload with image cropper widget
+    """
     
-#    def __init__(self):
-#        pass
+    def __init__(self,attrs=None):
+        widgets = (AdminFileWidget(attrs=attrs),
+                   #TextInput(attrs=attrs),
+                   ImageCropCoordinatesInput(attrs=attrs),
+                   )
+        super(CroppedImageFileInput,self).__init__(widgets,attrs)
+     
+    def decompress(self,value):
+        if isinstance(value,CroppedImageFile):
+            return [value,value]
+        return [None,None]
+    
+    def to_python(self,value):
+        return value
+    
+    def value_from_datadict(self, data, files, name):
+        values = super(CroppedImageFileInput,self).value_from_datadict(data,files,name)
+        if isinstance(values[0],File):
+            file = CroppedImageFile(values[0], crop_coords=values[1])
+            return file
+        return [None for widget in self.widgets]
+     
+    
+#    def render (self,name,value, attrs=None):
+#        text= super(CroppedImageFileInput,self).render(name,value,attrs)
+#        return text + "Hello World"
+#    def render(self, name, value, attrs=None):
+#        output=[]
+#        
+#        final_attrs = self.build_attrs(attrs)
+#        id_ = final_attrs.get('id', None)
+#        
+#        #Rendering the File widget
+#        fileParamName = "%s_%s" %(name,"file")
+#        
+#        if id_:
+#            final_attrs = dict(final_attrs,id='%s_%s' % (id_,'file',))
+#        output.append( self.fileInputWidget.render(fileParamName,value,final_attrs))
+#        
+#        return "".join(output)
+    
+#    def _get_media(self):
+#        """Media for a multiwidget is the combination of all media of the subwidgets"""
+#        media = Media()
+#        media = media + self.fileInputWidget
+#        media = media + self.imageCropWidget
+#        return media
+#    
+#    media = property(_get_media)
+        
+        
+        
+            

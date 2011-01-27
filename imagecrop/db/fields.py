@@ -6,7 +6,7 @@ Created on Jan 22, 2011
 from django.db import models
 import json
 from south.modelsinspector import add_introspection_rules
-from imagecrop.forms import fields
+from imagecrop.forms import widgets,fields
 from django.db.models.fields.files import FileDescriptor, FieldFile
 from imagecrop.files import CroppedImageFile
 
@@ -101,7 +101,7 @@ class CroppedImageField (models.FileField):
         self.image_height=kwargs.pop('image_height',None)
         
         #Setting default max_length
-        kwargs['max_length'] = kwargs.get('max_length', 250)
+        #kwargs['max_length'] = kwargs.get('max_length', 250)
         
         super(CroppedImageField,self).__init__(**kwargs)
         
@@ -116,8 +116,12 @@ class CroppedImageField (models.FileField):
         return json.dumps(result)
     
     def formfield(self, **kwargs):
-        defaults = {'form_class': fields.CroppedImageField}
+        defaults = {
+                    'form_class': fields.CroppedImageField
+            }
         defaults.update(kwargs)
+        #defaults['widget']=widgets.CroppedImageFileInput
+        ## TODO - change this to pass **defaults
         return super(CroppedImageField,self).formfield(**defaults)
     
     #def to_python(self,value):
