@@ -36,11 +36,14 @@ class CroppedImageField(forms.MultiValueField):
         
         fields = (
             
-            forms.ImageField(),
-            forms.CharField(),
+            forms.ImageField(*args,**kwargs),
+            forms.CharField(*args,**kwargs),
             
             #ImageCropCoordinatesField(),
         )
+        
+        #removing max_length argument so the Field class doesn't error out
+        self.max_length = kwargs.pop('max_length', None)
         
         super(CroppedImageField,self).__init__(fields,*args, **kwargs)
         
