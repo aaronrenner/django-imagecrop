@@ -7,7 +7,6 @@ from django.db import models
 from django.db.models.fields.files import FileDescriptor, FieldFile
 from imagecrop.files import CroppedImageFile
 from imagecrop.forms import fields
-from south.modelsinspector import add_introspection_rules
 import json
 
 
@@ -120,15 +119,21 @@ class CroppedImageField (models.FileField):
         defaults.update(kwargs)
         return super(CroppedImageField, self).formfield(**defaults)
         
-#South Specific. TODO - only include if south is installed
-add_introspection_rules([
-     (
-        [CroppedImageField], # Class(es) these apply to
-        [], # Positional arguments(not used)
-        {
-            "image_width": ["image_width", {"default": None}],
-            "image_height": ["image_height", {"default": None}],
-        },
-     ),
-
-], ['^imagecrop\.db\.fields\.CroppedImageField'])
+#South Specific.
+try:
+    from south.modelsinspector import add_introspection_rules
+    
+    add_introspection_rules([
+         (
+            [CroppedImageField], # Class(es) these apply to
+            [], # Positional arguments(not used)
+            {
+                "image_width": ["image_width", {"default": None}],
+                "image_height": ["image_height", {"default": None}],
+            },
+         ),
+    
+    ], ['^imagecrop\.db\.fields\.CroppedImageField'])
+except ImportError:
+    #south is not installed
+    pass
