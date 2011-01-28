@@ -5,9 +5,10 @@ Created on Jan 19, 2011
 '''
 from django import forms
 from imagecrop.forms.widgets import ImageCropCoordinatesInput,\
-    CroppedImageFileInput
+    CroppedImageFileInput, HiddenCroppedImageFileInput
 from django.core import validators
 from imagecrop.files import CroppedImageFile
+from django.core.exceptions import ValidationError
 
 
 
@@ -28,37 +29,54 @@ class ImageCropCoordinatesField(forms.Field):
             return None
         return value
 
-class CroppedImageField(forms.MultiValueField):
+class CroppedImageField(forms.ImageField):
     
     widget = CroppedImageFileInput
+    # This widget holds the initial value
+    hidden_widget = HiddenCroppedImageFileInput
     
     def __init__(self, *args, **kwargs):
         
-        fields = (
-            
-            forms.ImageField(*args,**kwargs),
-            forms.CharField(*args,**kwargs),
-            
-            #ImageCropCoordinatesField(),
-        )
+#        fields = (
+#            
+#            forms.ImageField(*args,**kwargs),
+#            forms.CharField(*args,**kwargs),
+#            
+#            #ImageCropCoordinatesField(),
+#        )
         
         #removing max_length argument so the Field class doesn't error out
-        self.max_length = kwargs.pop('max_length', None)
+        #self.max_length = kwargs.pop('max_length', None)
         
-        super(CroppedImageField,self).__init__(fields,*args, **kwargs)
+        super(CroppedImageField,self).__init__(*args, **kwargs)
         
-    def compress(self,data_list):
-        if data_list:
-            #Test to see if a file was uploaded
-            return data_list
-#            if (data_list[0]):
-#                file = CroppedImageFile(data_list[0].name, crop_coords=data_list[1])
-#                return file  
-        return None
+#    def to_python(self,data):
+#        f = super(CroppedImageField,self).to_python(data)
+#        return f
+    
+    def clean(self,value,initial):
         
-    def clean(self, value):
-        print "Clean"
-        super(CroppedImageField,self).clean(value)
+        cleaned_file=super(CroppedImageField,self).clean(value,initial)
+#        if value.file:
+#            cleaned_file = value.file
+#        else:
+#            cleaned_file = initial.file
+        cleaned_file.crop_coords=value.crop_coords
+        #return 
+        return cleaned_file
+    
+#    def compress(self,data_list):
+#        if data_list:
+#            #Test to see if a file was uploaded
+#            return data_list
+##            if (data_list[0]):
+##                file = CroppedImageFile(data_list[0].name, crop_coords=data_list[1])
+##                return file  
+#        return None
+        
+#    def clean(self, value):
+#        print "Clean"
+#        super(CroppedImageField,self).clean(value)
     #    """
     #    Validates the given value and returns its "cleaned" value as an
     #    appropriate Python object.

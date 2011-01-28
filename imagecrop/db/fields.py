@@ -16,7 +16,11 @@ class CroppedImageFieldFile(FieldFile,CroppedImageFile):
     """
     The CroppedImageFile, but has the required FieldFile attributes
     """
-    pass
+    
+#    def __init__(self, instance, field, name):
+#        super(CroppedImageFieldFile,self).__init__(instance,field,name)
+#        # Initializing crop_coords
+#        super.crop_coords=None
 
 class CroppedImageFileDescriptor(FileDescriptor):
     '''
@@ -109,15 +113,18 @@ class CroppedImageField (models.FileField):
         if value is None:
             return None
         
+        filename = super(CroppedImageField,self).get_prep_value(value)
+        
         result = {
-                  u'filename': super(CroppedImageField,self).get_prep_value(value),
+                  u'filename': filename,
                   u'crop_coords': value.crop_coords,
                 }
         return json.dumps(result)
     
     def formfield(self, **kwargs):
         defaults = {
-                    'form_class': fields.CroppedImageField
+                    'form_class': fields.CroppedImageField,
+                    'show_hidden_initial':True
             }
         defaults.update(kwargs)
         #defaults['widget']=widgets.CroppedImageFileInput

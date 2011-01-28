@@ -10,6 +10,8 @@ from django.utils.safestring import mark_safe
 from imagecrop.files import CroppedImageFile
 from django.core.files.base import File
 from django.contrib.admin.widgets import AdminFileWidget
+from django.core.files.uploadedfile import InMemoryUploadedFile
+from django.forms.fields import FileField
 
 class ImageCropCoordinatesInput(Widget):
     
@@ -59,57 +61,62 @@ class ImageCropCoordinatesInput(Widget):
         if not isinstance(value,CroppedImageFile):
             raise ValueError("ImageCropCoordinatesInput requires a CroppedImageFile value")
         
+        #Only display cropping control if the file has been saved to disk
+        if isinstance(value.file,InMemoryUploadedFile):
+            return ""
+        
         output = []
         
         final_attrs = self.build_attrs(attrs)
         id_ = final_attrs.get('id', None)
         
-        #Only render image cropping util if image_url has been set             
-        t = Template('''
-        <script language="Javascript">
-            jQuery(window).load(function(){
-                function updateCoords(coords){
-                    jQuery('#{{id}}_x1').val(coords.x);
-                    jQuery('#{{id}}_y1').val(coords.y);
-                    jQuery('#{{id}}_x2').val(coords.x2);
-                    jQuery('#{{id}}_y2').val(coords.y2);
-                };
-                
-                
-                
-                jQuery('#{{id}}').Jcrop({
-                    {%spaceless%}
-                    {% if coords.items|length == 4 %}
-                    setSelect: [{{coords.x1}},{{coords.y1}},{{coords.x2}},{{coords.y2}}],
-                    {% endif %}
-                    {% if boxWidth %}
-                    boxWidth:{{boxWidth}},
-                    {%endif%}
-                    {% if boxHeight %}
-                    boxHeight:{{boxHeight}},
-                    {%endif %}
-                    {%endspaceless%}
-                    aspectRatio: {{aspectRatio}},
-                    onChange: updateCoords,
-                    onSelect: updateCoords
+        if not self.is_hidden:
+            #Only render image cropping util if image_url has been set             
+            t = Template('''
+            <script language="Javascript">
+                jQuery(window).load(function(){
+                    function updateCoords(coords){
+                        jQuery('#{{id}}_x1').val(coords.x);
+                        jQuery('#{{id}}_y1').val(coords.y);
+                        jQuery('#{{id}}_x2').val(coords.x2);
+                        jQuery('#{{id}}_y2').val(coords.y2);
+                    };
+                    
+                    
+                    
+                    jQuery('#{{id}}').Jcrop({
+                        {%spaceless%}
+                        {% if coords.items|length == 4 %}
+                        setSelect: [{{coords.x1}},{{coords.y1}},{{coords.x2}},{{coords.y2}}],
+                        {% endif %}
+                        {% if boxWidth %}
+                        boxWidth:{{boxWidth}},
+                        {%endif%}
+                        {% if boxHeight %}
+                        boxHeight:{{boxHeight}},
+                        {%endif %}
+                        {%endspaceless%}
+                        aspectRatio: {{aspectRatio}},
+                        onChange: updateCoords,
+                        onSelect: updateCoords
+                    });
                 });
-            });
+                
+                
+                
+            </script>
+            <img src="{{imageurl}}" id='{{id}}' />
+            ''')
             
-            
-            
-        </script>
-        <img src="{{imageurl}}" id='{{id}}' />
-        ''')
-        
-        c = Context({
-               "id":id_,
-               "aspectRatio":self.aspect_ratio,
-               "imageurl": value.url,
-               "coords": value.crop_coords,
-               "boxWidth": self.crop_image_width,
-               "boxHeight":self.crop_image_height,
-               })
-        output.append(t.render(c))
+            c = Context({
+                   "id":id_,
+                   "aspectRatio":self.aspect_ratio,
+                   "imageurl": value.url,
+                   "coords": value.crop_coords,
+                   "boxWidth": self.crop_image_width,
+                   "boxHeight":self.crop_image_height,
+                   })
+            output.append(t.render(c))
            
         for param in ImageCropCoordinatesInput.COORD_PARAMS:
             widget = HiddenInput()
@@ -139,7 +146,7 @@ class ImageCropCoordinatesInput(Widget):
         
         
 
-class CroppedImageFileInput(MultiWidget):
+class CroppedImageFileInput(MultiWidget,FileField):
     """
     Complete file upload with image cropper widget
     """
@@ -156,16 +163,40 @@ class CroppedImageFileInput(MultiWidget):
             return [value,value]
         return [None,None]
     
-    def to_python(self,value):
-        return value
-    
     def value_from_datadict(self, data, files, name):
+        # Maybe have it return a different class if the file isn't uploaded
+        
         values = super(CroppedImageFileInput,self).value_from_datadict(data,files,name)
         if isinstance(values[0],File):
-            file = CroppedImageFile(values[0], crop_coords=values[1])
-            return file
-        return [None for widget in self.widgets]
+            file = CroppedImageFile(values[0])
+        else:
+            file = CroppedImageFile(None)
+        file.crop_coords = values[1]
+        return file
+        #return None
      
+    def _has_changed(self,initial,data):
+        if data.file:
+            # file changed
+            return True
+        #changed = super(CroppedImageFileInput,self)._has_changed(initial,data)
+        return initial.crop_coords != data.crop_coords
+    
+class HiddenCroppedImageFileInput(CroppedImageFileInput):
+    """
+    Splits the cropped image file input into two hidden inputs
+    """
+    def __init__(self,attrs=None):
+        super(HiddenCroppedImageFileInput,self).__init__(attrs)
+        
+        self.widgets=(FileInput(attrs=attrs),
+                   ImageCropCoordinatesInput(attrs=attrs),
+                   ) 
+
+        
+        for widget in self.widgets:
+            widget.input_type = 'hidden'
+            widget.is_hidden = True
     
 #    def render (self,name,value, attrs=None):
 #        text= super(CroppedImageFileInput,self).render(name,value,attrs)
