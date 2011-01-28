@@ -4,23 +4,19 @@ Created on Jan 22, 2011
 @author: arenner
 '''
 from django.db import models
-import json
-from south.modelsinspector import add_introspection_rules
-from imagecrop.forms import widgets,fields
 from django.db.models.fields.files import FileDescriptor, FieldFile
 from imagecrop.files import CroppedImageFile
+from imagecrop.forms import fields
+from south.modelsinspector import add_introspection_rules
+import json
 
 
 
-class CroppedImageFieldFile(FieldFile,CroppedImageFile):
+class CroppedImageFieldFile(FieldFile, CroppedImageFile):
     """
     The CroppedImageFile, but has the required FieldFile attributes
     """
-    
-#    def __init__(self, instance, field, name):
-#        super(CroppedImageFieldFile,self).__init__(instance,field,name)
-#        # Initializing crop_coords
-#        super.crop_coords=None
+    pass
 
 class CroppedImageFileDescriptor(FileDescriptor):
     '''
@@ -59,11 +55,11 @@ class CroppedImageFileDescriptor(FileDescriptor):
         #try to decode json string
         if isinstance(value, basestring):
             #Eventual holder of filename
-            filename=None
+            filename = None
             try:
                 valuedic = json.loads(value)
-                filename = valuedic.get('filename',None)
-                crop_coords = valuedic.get('crop_coords',None)
+                filename = valuedic.get('filename', None)
+                crop_coords = valuedic.get('crop_coords', None)
             except ValueError:
                 # Not json, so must be a filename
                 filename = value
@@ -71,10 +67,10 @@ class CroppedImageFileDescriptor(FileDescriptor):
             # If the filename is available from a dictionary, run set, so the superclass
             # can do the correct conversions
             if filename:
-                self.__set__(instance,filename)  
+                self.__set__(instance, filename)  
         
         #Handle File values, filename strings
-        superval = super(CroppedImageFileDescriptor,self).__get__(instance,owner)
+        superval = super(CroppedImageFileDescriptor, self).__get__(instance, owner)
         
         # Set the crop coords
         superval.crop_coords = crop_coords
@@ -87,13 +83,11 @@ class CroppedImageField (models.FileField):
     
     attr_class = CroppedImageFieldFile
     
-    descriptor_class= CroppedImageFileDescriptor
-    
-    #__metaclass__ = models.SubfieldBase
+    descriptor_class = CroppedImageFileDescriptor
     
     description = "Stores an image and its cropping coordinates"
     
-    def __init__(self,image_width=None,image_height=None,**kwargs):
+    def __init__(self, image_width=None, image_height=None, **kwargs):
         '''
         Constructor for CroppedImageField
         
@@ -101,19 +95,16 @@ class CroppedImageField (models.FileField):
         image_height - The desired height of the cropped image.
         '''
         
-        self.image_width=kwargs.pop('image_width',None)
-        self.image_height=kwargs.pop('image_height',None)
+        self.image_width = image_height
+        self.image_height = image_width
         
-        #Setting default max_length
-        #kwargs['max_length'] = kwargs.get('max_length', 250)
-        
-        super(CroppedImageField,self).__init__(**kwargs)
+        super(CroppedImageField, self).__init__(**kwargs)
         
     def get_prep_value(self, value):
         if value is None:
             return None
         
-        filename = super(CroppedImageField,self).get_prep_value(value)
+        filename = super(CroppedImageField, self).get_prep_value(value)
         
         result = {
                   u'filename': filename,
@@ -124,34 +115,14 @@ class CroppedImageField (models.FileField):
     def formfield(self, **kwargs):
         defaults = {
                     'form_class': fields.CroppedImageField,
-                    'show_hidden_initial':True
+                    'show_hidden_initial':True,
             }
         defaults.update(kwargs)
-        #defaults['widget']=widgets.CroppedImageFileInput
-        ## TODO - change this to pass **defaults
-        return super(CroppedImageField,self).formfield(**defaults)
-    
-    #def to_python(self,value):
-    #    return value
-#        if value is None or value == "":
-#            return None
-#        if isinstance(value,CroppedImageFieldFile):
-#            return value
-#        #Value is string coming form database
-#        myjson = json.loads(value)
-#        return myjson
-    
-#    def contribute_to_class(self,cls,name):
-#        crop_coords_field = CoordinatesField(max_length=50,
-#                                             editable=False,blank=True)
-#        
-#        cls.add_to_class(_crop_coords_field_name(name),crop_coords_field)
-#        
-#        super(CroppedImageField,self).contribute_to_class(cls,name)
+        return super(CroppedImageField, self).formfield(**defaults)
         
-
+#South Specific. TODO - only include if south is installed
 add_introspection_rules([
-     ( 
+     (
         [CroppedImageField], # Class(es) these apply to
         [], # Positional arguments(not used)
         {
@@ -160,4 +131,4 @@ add_introspection_rules([
         },
      ),
 
-],['^imagecrop\.db\.fields\.CroppedImageField'])
+], ['^imagecrop\.db\.fields\.CroppedImageField'])
