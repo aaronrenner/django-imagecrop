@@ -1,2 +1,3 @@
 *.pyc
 tests/testproject/test.db
+tests/testproject/static/test
