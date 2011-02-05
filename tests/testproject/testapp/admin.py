@@ -4,14 +4,19 @@ Created on Feb 1, 2011
 @author: arenner
 '''
 from django.contrib import admin
-from testproject.testapp.models import TestImage
-from imagecrop.forms.fields import CroppedImageField
+from django.forms.models import ModelForm
 from imagecrop.forms.widgets import CroppedImageFileInput
+from testproject.testapp.models import TestImage
+
+class TestImageAdminForm(ModelForm):
+    class Meta:
+        model=TestImage
+        widgets = {
+            'image': CroppedImageFileInput(aspect_ratio=(950/280.0)),
+        }
 
 class TestImageAdmin(admin.ModelAdmin):
-    formfield_overrides = {
-        CroppedImageField: {'widget': CroppedImageFileInput},
-    }
+    form = TestImageAdminForm
 
 
 admin.site.register(TestImage, TestImageAdmin)
