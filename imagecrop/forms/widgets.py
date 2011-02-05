@@ -10,7 +10,7 @@ from django.forms.fields import FileField
 from django.forms.widgets import Widget, HiddenInput, MultiWidget, FileInput
 from django.template import Template, Context
 from django.utils.safestring import mark_safe
-from imagecrop.files import CroppedImageFile
+from imagecrop.files import CroppedImageFile, CropCoords
 
 class ImageCropCoordinatesInput(Widget):
     
@@ -61,7 +61,7 @@ class ImageCropCoordinatesInput(Widget):
             raise ValueError("ImageCropCoordinatesInput requires a CroppedImageFile value")
         
         #Only display cropping control if the file has been saved to disk
-        if isinstance(value.file, InMemoryUploadedFile):
+        if isinstance(value.file, InMemoryUploadedFile) or not hasattr(value,'url'):
             return ""
         
         output = []
@@ -85,7 +85,7 @@ class ImageCropCoordinatesInput(Widget):
                     
                     jQuery('#{{id}}').Jcrop({
                         {%spaceless%}
-                        {% if coords.items|length == 4 %}
+                        {% if coords %}
                         setSelect: [{{coords.x1}},{{coords.y1}},{{coords.x2}},{{coords.y2}}],
                         {% endif %}
                         {% if boxWidth %}
@@ -122,7 +122,7 @@ class ImageCropCoordinatesInput(Widget):
             
             if id_:
                 final_attrs = dict(final_attrs, id='%s_%s' % (id_, param))
-            coord = value.crop_coords.get(param, None) if value.crop_coords else None
+            coord = getattr(value.crop_coords,param) if value.crop_coords else None
             output.append(widget.render("%s_%s" % (name, param), coord, final_attrs))
             
         return mark_safe(u''.join(output))
@@ -130,13 +130,16 @@ class ImageCropCoordinatesInput(Widget):
     def value_from_datadict(self, data, files, name):
         # Returns a dictionary of the crop coordinates
         # Note: it does not return the CroppedImageFile that was passed to the render method
-        result = {}
+        result = CropCoords()
         
         valueFound = False
         
         for param in ImageCropCoordinatesInput.COORD_PARAMS:
-            result[param] = data.get(u"%s_%s" % (name, param,), None)
-            if result[param]:
+            param_data = data.get(u"%s_%s" % (name, param,), None)
+            if param_data:
+                param_data = int(param_data)
+            setattr(result,param,param_data)
+            if getattr(result,param):
                 valueFound = True
                 
         if valueFound:
@@ -168,6 +171,7 @@ class CroppedImageFileInput(MultiWidget, FileField):
             file = CroppedImageFile(values[0])
         else:
             file = CroppedImageFile(None)
+            #return None
         file.crop_coords = values[1]
         return file
      
@@ -184,11 +188,15 @@ class HiddenCroppedImageFileInput(CroppedImageFileInput):
     def __init__(self, attrs=None):
         super(HiddenCroppedImageFileInput, self).__init__(attrs)
         
-        self.widgets = (FileInput(attrs=attrs),
+        self.widgets = (HiddenInput(attrs=attrs),
                    ImageCropCoordinatesInput(attrs=attrs),
                    ) 
 
         
         for widget in self.widgets:
             widget.input_type = 'hidden'
-            widget.is_hidden = True    
+            widget.is_hidden = True   
+            
+#    def render(self, name, value, attrs=None):
+#        self.initial_value=value
+#        return super(HiddenCroppedImageFileInput,self).render(name,value,attrs) 

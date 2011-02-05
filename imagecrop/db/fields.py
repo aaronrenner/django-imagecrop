@@ -5,7 +5,8 @@ Created on Jan 22, 2011
 '''
 from django.db import models
 from django.db.models.fields.files import FileDescriptor, FieldFile
-from imagecrop.files import CroppedImageFile
+from imagecrop.files import CroppedImageFile, decode_crop_coord,\
+    CropCoordEncoder
 from imagecrop.forms import fields
 from django.db.models import signals
 import os,json
@@ -21,11 +22,13 @@ class CroppedImageFieldFile(FieldFile, CroppedImageFile):
 #        super(FieldFile, self).__init(instance,field,name)
     
     
-    def get_crop_filename(self):
+    def get_meta_filename(self):
         '''
         Gets the filename containing the crop coordinates
         '''
-        return os.path.join(settings.MEDIA_ROOT,os.path.splitext(self.name)[0] +".crop")   
+        if self.name:
+            return os.path.join(settings.MEDIA_ROOT,self.name +".meta")
+        return None  
 
 class CroppedImageFileDescriptor(FileDescriptor):
     '''
@@ -56,9 +59,9 @@ class CroppedImageFileDescriptor(FileDescriptor):
         if isinstance(orig_val, basestring):
             # Look for crop_coords
             try:
-                cropfile = fieldfile.get_crop_filename()
+                cropfile = fieldfile.get_meta_filename()
                 if os.path.exists(cropfile):
-                    result = json.load(open(cropfile,'r'))
+                    result = json.load(open(cropfile,'r'),object_hook=decode_crop_coord)
                     fieldfile.crop_coords = result['crop']
             except:
                 pass
@@ -145,17 +148,30 @@ class CroppedImageField (models.FileField):
     def pre_save(self,model_instance,add):
         file = super(CroppedImageField, self).pre_save(model_instance,add)
         
-        f = open(file.get_crop_filename(),'w')
-        f.write(json.dumps({'crop':file.crop_coords}))
-        f.close()
+        meta_filename = file.get_meta_filename()
+        if meta_filename:
+            f = open(meta_filename,'w')
+            f.write(json.dumps({'crop':file.crop_coords},cls=CropCoordEncoder))
+            f.close()
         
         return file
+    
+    
         
     def contribute_to_class(self, cls, name):
         super(CroppedImageField, self).contribute_to_class(cls,name)
         
+        signals.pre_delete.connect(self.delete_metafile, sender=cls)
+        
         # Attach update cropcoords
 #        signals.post_init.connect(self.update_crop_coords, sender=cls)
+     
+    def delete_metafile(self, instance, sender, **kwargs):
+        field = getattr(instance, self.attname)
+        
+        meta_filename = field.get_meta_filename()
+        if meta_filename and os.path.exists(meta_filename):
+            os.remove(meta_filename)
         
 #    def update_crop_coords(self,instance,force=False, *args, **kwargs):
 #        
