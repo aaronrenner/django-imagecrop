@@ -5,3 +5,4 @@ from imagecrop.db.fields import CroppedImageField
 class TestImage(models.Model):
     name = models.CharField(max_length=50)
     image = CroppedImageField(upload_to="test", image_height=280, image_width=950)
+    image_not_required = CroppedImageField(upload_to="test", image_height=280, image_width=950,null=True,blank=True)

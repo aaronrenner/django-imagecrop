@@ -13,6 +13,7 @@ class TestImageAdminForm(ModelForm):
         model=TestImage
         widgets = {
             'image': CroppedImageFileInput(),
+            'image_not_required': CroppedImageFileInput(),
         }
 
 class TestImageAdmin(admin.ModelAdmin):

@@ -58,6 +58,9 @@ class CroppedImageFileDescriptor(FileDescriptor):
         # in __set__.
         orig_val = instance.__dict__[self.field.name]
         
+        if not orig_val:
+            return None
+        
         # Have the super class take care of most of the dirty work
         fieldfile = super(CroppedImageFileDescriptor, self).__get__(instance, owner)
         
@@ -111,11 +114,12 @@ class CroppedImageField (models.FileField):
     def pre_save(self,model_instance,add):
         file = super(CroppedImageField, self).pre_save(model_instance,add)
         
-        meta_filename = file.meta_filename
-        if meta_filename:
-            f = open(meta_filename,'w')
-            f.write(json.dumps({'crop':file.crop_coords},cls=CropCoordEncoder))
-            f.close()
+        if file:
+            meta_filename = file.meta_filename
+            if meta_filename:
+                f = open(meta_filename,'w')
+                f.write(json.dumps({'crop':file.crop_coords},cls=CropCoordEncoder))
+                f.close()
         
         return file
     
@@ -130,18 +134,19 @@ class CroppedImageField (models.FileField):
     def _cleanup_files(self, instance, sender, **kwargs):
         field = getattr(instance, self.attname)
         
-        meta_filename = field.meta_filename
-        if meta_filename and os.path.exists(meta_filename):
-            os.remove(meta_filename)
-            
-        cropped_filename = os.path.join(settings.MEDIA_ROOT,field.cropped_filename)
-        if cropped_filename and os.path.exists(cropped_filename):
-            os.remove(cropped_filename)
+        if field:
+            meta_filename = field.meta_filename
+            if meta_filename and os.path.exists(meta_filename):
+                os.remove(meta_filename)
+                
+            cropped_filename = os.path.join(settings.MEDIA_ROOT,field.cropped_filename)
+            if cropped_filename and os.path.exists(cropped_filename):
+                os.remove(cropped_filename)
       
     def _crop_image(self,sender,instance,**kwargs):
         field = getattr(instance, self.attname)
         
-        if field.file and field.crop_coords !=None:
+        if field and field.file and field.crop_coords !=None:
             filename = field.file.name;
             crop_coords = field.crop_coords
             

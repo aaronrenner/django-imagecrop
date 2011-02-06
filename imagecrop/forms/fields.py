@@ -24,7 +24,7 @@ class CroppedImageField(forms.ImageField):
         
     
     def prepare_value(self, value):
-        if isinstance(value, CroppedImageFile) and not value.name:
+        if self._current_value and isinstance(value, CroppedImageFile) and not value.name:
             #return current_value, but update the crop coords
             self._current_value.crop_coords = value.crop_coords
             return self._current_value
@@ -33,13 +33,14 @@ class CroppedImageField(forms.ImageField):
     def clean(self, value, initial):
         
         cleaned_file = super(CroppedImageField, self).clean(value, initial)
-        if value.file == None:
-            #Didn't upload a new file, so take the submitted crop coords
-            cleaned_file.crop_coords = value.crop_coords
-        else:
-            #Uploaded a new file, so clear out the crop coords
-            cleaned_file.crop_coords = None
-        self._current_value = cleaned_file
+        if cleaned_file:
+            if value !=None and value.file == None:
+                #Didn't upload a new file, so take the submitted crop coords
+                cleaned_file.crop_coords = value.crop_coords
+            else:
+                #Uploaded a new file, so clear out the crop coords
+                cleaned_file.crop_coords = None
+            self._current_value = cleaned_file
         return cleaned_file
     
     def widget_attrs(self,widget):
