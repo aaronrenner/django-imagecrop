@@ -35,15 +35,17 @@ class ImageCropCoordinatesInput(Widget):
         Creates a new ImageCrop input
         
         attrs - HTML attributes
-        aspect_ratio - width/height. 0 for N/A. 1.0 for square
         crop_image_height - The max height of the image cropping control
         crop_image_width - The max width of the image cropping control
         '''
-        super(ImageCropCoordinatesInput, self).__init__(attrs)
         
-        self.aspect_ratio = aspect_ratio
+        self.aspect_ratio=aspect_ratio
         self.crop_image_height = crop_image_height
         self.crop_image_width = crop_image_width
+        
+        
+        super(ImageCropCoordinatesInput, self).__init__(attrs)
+        
         
     
     def render(self, name, value, attrs=None):
@@ -68,6 +70,7 @@ class ImageCropCoordinatesInput(Widget):
         
         final_attrs = self.build_attrs(attrs)
         id_ = final_attrs.get('id', None)
+        aspect_ratio = final_attrs.pop('aspect_ratio',0.0)
         
         if not self.is_hidden:
             #Only render image cropping util if image_url has been set             
@@ -109,7 +112,7 @@ class ImageCropCoordinatesInput(Widget):
             
             c = Context({
                    "id":id_,
-                   "aspectRatio":self.aspect_ratio,
+                   "aspectRatio":aspect_ratio,
                    "imageurl": value.url,
                    "coords": value.crop_coords,
                    "boxWidth": self.crop_image_width,
@@ -153,7 +156,10 @@ class CroppedImageFileInput(MultiWidget, FileField):
     Complete file upload with image cropper widget
     """
     
-    def __init__(self, attrs=None,aspect_ratio=0.0):
+    def __init__(self, attrs=None):
+        
+        aspect_ratio = attrs.get('apsect_ratio',0.0) if attrs else 0.0
+        
         widgets = (AdminFileWidget(attrs=attrs),
                    ImageCropCoordinatesInput(attrs=attrs,aspect_ratio=aspect_ratio),
                    )

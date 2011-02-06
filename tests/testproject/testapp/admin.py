@@ -12,7 +12,7 @@ class TestImageAdminForm(ModelForm):
     class Meta:
         model=TestImage
         widgets = {
-            'image': CroppedImageFileInput(aspect_ratio=(950/280.0)),
+            'image': CroppedImageFileInput(),
         }
 
 class TestImageAdmin(admin.ModelAdmin):

@@ -103,8 +103,8 @@ class CroppedImageField (models.FileField):
         image_height - The desired height of the cropped image.
         '''
         
-        self.image_width = image_height
-        self.image_height = image_width
+        self.image_width = image_width
+        self.image_height = image_height
         
         super(CroppedImageField, self).__init__(**kwargs)
         
@@ -148,6 +148,9 @@ class CroppedImageField (models.FileField):
             #Crop the image
             baseimage = Image.open(filename, 'r')
             cropped_image = baseimage.crop((crop_coords.x1, crop_coords.y1, crop_coords.x2, crop_coords.y2))
+            if self.image_height and self.image_width:
+                cropped_image = cropped_image.resize((self.image_width,self.image_height),Image.ANTIALIAS)
+            
             cropped_image.load()
             
             #Save the cropped image
@@ -159,6 +162,8 @@ class CroppedImageField (models.FileField):
         defaults = {
                     'form_class': fields.CroppedImageField,
                     'show_hidden_initial':True,
+                    'image_height':self.image_height,
+                    'image_width': self.image_width,
             }
         defaults.update(kwargs)
         return super(CroppedImageField, self).formfield(**defaults)
