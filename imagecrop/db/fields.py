@@ -9,7 +9,7 @@ from imagecrop.files import CroppedImageFile, decode_crop_coord,\
     CropCoordEncoder
 from imagecrop.forms import fields
 from django.db.models import signals
-import os,json
+import os,json,Image
 from django.conf import settings
 
 
@@ -18,17 +18,28 @@ class CroppedImageFieldFile(FieldFile, CroppedImageFile):
     """
     The CroppedImageFile, but has the required FieldFile attributes
     """
-#    def __init__(self,instance,field,name):
-#        super(FieldFile, self).__init(instance,field,name)
     
     
-    def get_meta_filename(self):
+    def _get_meta_filename(self):
         '''
         Gets the filename containing the crop coordinates
         '''
         if self.name:
             return os.path.join(settings.MEDIA_ROOT,self.name +".meta")
         return None  
+    
+    meta_filename=property(_get_meta_filename)
+    
+    def _get_cropped_filename(self):
+        '''
+        Gets the filename for the cropped file
+        '''
+        if self.name:
+            filename_parts = os.path.splitext(self.name)
+            return "%s.cropped%s" % (filename_parts[0],filename_parts[1])
+        return None
+    
+    cropped_filename = property(_get_cropped_filename)
 
 class CroppedImageFileDescriptor(FileDescriptor):
     '''
@@ -59,7 +70,7 @@ class CroppedImageFileDescriptor(FileDescriptor):
         if isinstance(orig_val, basestring):
             # Look for crop_coords
             try:
-                cropfile = fieldfile.get_meta_filename()
+                cropfile = fieldfile.meta_filename
                 if os.path.exists(cropfile):
                     result = json.load(open(cropfile,'r'),object_hook=decode_crop_coord)
                     fieldfile.crop_coords = result['crop']
@@ -70,52 +81,6 @@ class CroppedImageFileDescriptor(FileDescriptor):
         instance.__dict__[self.field.name]=fieldfile
         
         return fieldfile
-        
-#        if instance is None:
-#                raise AttributeError(
-#                    "The '%s' attribute can only be accessed from %s instances."
-#                    % (self.field.name, owner.__name__))
-#        
-#        
-#        
-#        
-#        
-#        
-#        # if it's a CroppedImageFieldFile, it's good to go
-#        if isinstance(value, CroppedImageFieldFile):
-#            return value 
-#        
-#        # Holds eventual crop coordinates
-#        crop_coords = None
-#        # If it's a CroppedImageFile, extract the crop_coords and let the superclass
-#        # convert it to a CroppedImageFileField. We will assign the crop_coords later
-#        if isinstance(value, CroppedImageFieldFile):
-#            crop_coords = value.crop_coords
-#        
-#        #try to decode json string
-#        if isinstance(value, basestring):
-#            #Eventual holder of filename
-#            filename = None
-#            try:
-#                valuedic = json.loads(value)
-#                filename = valuedic.get('filename', None)
-#                crop_coords = valuedic.get('crop_coords', None)
-#            except ValueError:
-#                # Not json, so must be a filename
-#                filename = value
-#            
-#            # If the filename is available from a dictionary, run set, so the superclass
-#            # can do the correct conversions
-#            if filename:
-#                self.__set__(instance, filename)  
-#        
-#        #Handle File values, filename strings
-#        superval = super(CroppedImageFileDescriptor, self).__get__(instance, owner)
-#        
-#        # Set the crop coords
-#        superval.crop_coords = crop_coords
-#        
-#        return superval
     
     def __set__(self, instance, value):
         super(CroppedImageFileDescriptor, self).__set__(instance, value)
@@ -123,8 +88,6 @@ class CroppedImageFileDescriptor(FileDescriptor):
         
 
 class CroppedImageField (models.FileField):
-    
-    #__metaclass__ = models.SubfieldBase
     
     attr_class = CroppedImageFieldFile
     
@@ -148,7 +111,7 @@ class CroppedImageField (models.FileField):
     def pre_save(self,model_instance,add):
         file = super(CroppedImageField, self).pre_save(model_instance,add)
         
-        meta_filename = file.get_meta_filename()
+        meta_filename = file.meta_filename
         if meta_filename:
             f = open(meta_filename,'w')
             f.write(json.dumps({'crop':file.crop_coords},cls=CropCoordEncoder))
@@ -161,34 +124,36 @@ class CroppedImageField (models.FileField):
     def contribute_to_class(self, cls, name):
         super(CroppedImageField, self).contribute_to_class(cls,name)
         
-        signals.pre_delete.connect(self.delete_metafile, sender=cls)
-        
-        # Attach update cropcoords
-#        signals.post_init.connect(self.update_crop_coords, sender=cls)
+        signals.post_save.connect(self._crop_image,sender=cls)
+        signals.pre_delete.connect(self._cleanup_files, sender=cls)
      
-    def delete_metafile(self, instance, sender, **kwargs):
+    def _cleanup_files(self, instance, sender, **kwargs):
         field = getattr(instance, self.attname)
         
-        meta_filename = field.get_meta_filename()
+        meta_filename = field.meta_filename
         if meta_filename and os.path.exists(meta_filename):
             os.remove(meta_filename)
+            
+        cropped_filename = os.path.join(settings.MEDIA_ROOT,field.cropped_filename)
+        if cropped_filename and os.path.exists(cropped_filename):
+            os.remove(cropped_filename)
+      
+    def _crop_image(self,sender,instance,**kwargs):
+        field = getattr(instance, self.attname)
         
-#    def update_crop_coords(self,instance,force=False, *args, **kwargs):
-#        
-#        file = getattr(instance, self.attname)
-#        print instance
-        
-#    def get_prep_value(self, value):
-#        if value is None:
-#            return None
-#        
-#        filename = super(CroppedImageField, self).get_prep_value(value)
-#        
-#        result = {
-#                  u'filename': filename,
-#                  u'crop_coords': value.crop_coords,
-#                }
-#        return json.dumps(result)
+        if field.file and field.crop_coords !=None:
+            filename = field.file.name;
+            crop_coords = field.crop_coords
+            
+            #Crop the image
+            baseimage = Image.open(filename, 'r')
+            cropped_image = baseimage.crop((crop_coords.x1, crop_coords.y1, crop_coords.x2, crop_coords.y2))
+            cropped_image.load()
+            
+            #Save the cropped image
+            cropped_filename = os.path.join(settings.MEDIA_ROOT,field.cropped_filename)
+            cropped_image.save(cropped_filename)
+            
     
     def formfield(self, **kwargs):
         defaults = {
