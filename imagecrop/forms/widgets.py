@@ -114,7 +114,12 @@ class ImageCropCoordinatesInput(Widget):
             <img src="{{imageurl}}" height="{{thumbnail_image.height}}" width="{{thumbnail_image.width}}" id='{{id}}' />
             ''')
             
-            thumbnail_image = ImageFile(open(os.path.join(settings.MEDIA_ROOT, value.orig_thumbnail_filename)))
+            orig_thumbnail_path = os.path.join(settings.MEDIA_ROOT, value.orig_thumbnail_filename)
+            
+            if not os.path.exists(orig_thumbnail_path):
+                value.generate_orig_thumbnail_file()
+            
+            thumbnail_image = ImageFile(open(orig_thumbnail_path))
             
             c = Context({
                    "id":id_,
