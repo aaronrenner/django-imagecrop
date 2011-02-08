@@ -3,14 +3,17 @@ Created on Jan 19, 2011
 
 @author: arenner
 '''
+from django.conf import settings
 from django.contrib.admin.widgets import AdminFileWidget
 from django.core.files.base import File
+from django.core.files.images import ImageFile
 from django.core.files.uploadedfile import InMemoryUploadedFile
 from django.forms.fields import FileField
-from django.forms.widgets import Widget, HiddenInput, MultiWidget, FileInput
+from django.forms.widgets import Widget, HiddenInput, MultiWidget
 from django.template import Template, Context
 from django.utils.safestring import mark_safe
 from imagecrop.files import CroppedImageFile, CropCoords
+import os
 
 class ImageCropCoordinatesInput(Widget):
     
@@ -39,7 +42,7 @@ class ImageCropCoordinatesInput(Widget):
         crop_image_width - The max width of the image cropping control
         '''
         
-        self.aspect_ratio=aspect_ratio
+        self.aspect_ratio = aspect_ratio
         self.crop_image_height = crop_image_height
         self.crop_image_width = crop_image_width
         
@@ -63,14 +66,14 @@ class ImageCropCoordinatesInput(Widget):
             raise ValueError("ImageCropCoordinatesInput requires a CroppedImageFile value")
         
         #Only display cropping control if the file has been saved to disk
-        if isinstance(value.file, InMemoryUploadedFile) or not hasattr(value,'url'):
+        if isinstance(value.file, InMemoryUploadedFile) or not hasattr(value, 'url'):
             return ""
         
         output = []
         
         final_attrs = self.build_attrs(attrs)
         id_ = final_attrs.get('id', None)
-        aspect_ratio = final_attrs.pop('aspect_ratio',0.0)
+        aspect_ratio = final_attrs.pop('aspect_ratio', 0.0)
         
         if not self.is_hidden:
             #Only render image cropping util if image_url has been set             
@@ -86,11 +89,8 @@ class ImageCropCoordinatesInput(Widget):
                     
                     
                     
-                    jQuery('#{{id}}').Jcrop({
+                    var api = jQuery.Jcrop('#{{id}}',{
                         {%spaceless%}
-                        {% if coords %}
-                        setSelect: [{{coords.x1}},{{coords.y1}},{{coords.x2}},{{coords.y2}}],
-                        {% endif %}
                         {% if boxWidth %}
                         boxWidth:{{boxWidth}},
                         {%endif%}
@@ -100,23 +100,32 @@ class ImageCropCoordinatesInput(Widget):
                         {%endspaceless%}
                         aspectRatio: {{aspectRatio}},
                         onChange: updateCoords,
-                        onSelect: updateCoords
+                        onSelect: updateCoords,
+                        trueSize:[{{trueWidth}},{{trueHeight}}]
                     });
+                    {% if coords %}
+                    api.setSelect( [{{coords.x1}},{{coords.y1}},{{coords.x2}},{{coords.y2}}]);
+                    {% endif %}
                 });
                 
                 
                 
             </script>
-            <img src="{{imageurl}}" id='{{id}}' />
+            <img src="{{imageurl}}" height="{{thumbnail_image.height}}" width="{{thumbnail_image.width}}" id='{{id}}' />
             ''')
+            
+            thumbnail_image = ImageFile(open(os.path.join(settings.MEDIA_ROOT, value.orig_thumbnail_filename)))
             
             c = Context({
                    "id":id_,
                    "aspectRatio":aspect_ratio,
-                   "imageurl": value.url,
+                   "imageurl": settings.MEDIA_URL + value.orig_thumbnail_filename,
                    "coords": value.crop_coords,
                    "boxWidth": self.crop_image_width,
                    "boxHeight":self.crop_image_height,
+                   "trueWidth":value.width,
+                   "trueHeight":value.height,
+                   "thumbnail_image":thumbnail_image
                    })
             output.append(t.render(c))
            
@@ -125,7 +134,7 @@ class ImageCropCoordinatesInput(Widget):
             
             if id_:
                 final_attrs = dict(final_attrs, id='%s_%s' % (id_, param))
-            coord = getattr(value.crop_coords,param) if value.crop_coords else None
+            coord = getattr(value.crop_coords, param) if value.crop_coords else None
             output.append(widget.render("%s_%s" % (name, param), coord, final_attrs))
             
         return mark_safe(u''.join(output))
@@ -141,8 +150,8 @@ class ImageCropCoordinatesInput(Widget):
             param_data = data.get(u"%s_%s" % (name, param,), None)
             if param_data:
                 param_data = int(param_data)
-            setattr(result,param,param_data)
-            if getattr(result,param):
+            setattr(result, param, param_data)
+            if getattr(result, param):
                 valueFound = True
                 
         if valueFound:
@@ -158,10 +167,10 @@ class CroppedImageFileInput(MultiWidget, FileField):
     
     def __init__(self, attrs=None):
         
-        aspect_ratio = attrs.get('apsect_ratio',0.0) if attrs else 0.0
+        aspect_ratio = attrs.get('apsect_ratio', 0.0) if attrs else 0.0
         
         widgets = (AdminFileWidget(attrs=attrs),
-                   ImageCropCoordinatesInput(attrs=attrs,aspect_ratio=aspect_ratio),
+                   ImageCropCoordinatesInput(attrs=attrs, aspect_ratio=aspect_ratio),
                    )
         super(CroppedImageFileInput, self).__init__(widgets, attrs)
      

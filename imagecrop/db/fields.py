@@ -40,6 +40,18 @@ class CroppedImageFieldFile(FieldFile, CroppedImageFile):
         return None
     
     cropped_filename = property(_get_cropped_filename)
+    
+    def _get_orig_thumbnail_filename(self):
+        '''
+        Gets the thumbnail of the original image that is used for the
+        cropping control
+        '''
+        if self.name:
+            filename_parts = os.path.splitext(self.name)
+            return "%s.origthumb%s" % (filename_parts[0],filename_parts[1])
+        return None
+        
+    orig_thumbnail_filename=property(_get_orig_thumbnail_filename)
 
 class CroppedImageFileDescriptor(FileDescriptor):
     '''
@@ -91,6 +103,9 @@ class CroppedImageFileDescriptor(FileDescriptor):
         
 
 class CroppedImageField (models.FileField):
+    
+    DEFAULT_CROP_THUMBNAIL_HEIGHT=600
+    DEFAULT_CROP_THUMBNAIL_WIDTH=600
     
     attr_class = CroppedImageFieldFile
     
@@ -144,23 +159,40 @@ class CroppedImageField (models.FileField):
                 os.remove(cropped_filename)
       
     def _crop_image(self,sender,instance,**kwargs):
+        '''
+        Generates cropped and resized images needed for control to work
+        '''
         field = getattr(instance, self.attname)
         
-        if field and field.file and field.crop_coords !=None:
+        if field and field.file:
             filename = field.file.name;
-            crop_coords = field.crop_coords
             
-            #Crop the image
+            #generate original thumbnail
             baseimage = Image.open(filename, 'r')
-            cropped_image = baseimage.crop((crop_coords.x1, crop_coords.y1, crop_coords.x2, crop_coords.y2))
-            if self.image_height and self.image_width:
-                cropped_image = cropped_image.resize((self.image_width,self.image_height),Image.ANTIALIAS)
+            thumbsize = (getattr(settings,"CROP_THUMBNAIL_HEIGHT",CroppedImageField.DEFAULT_CROP_THUMBNAIL_HEIGHT),
+                         getattr(settings,"CROP_THUMBNAIL_WIDTH",CroppedImageField.DEFAULT_CROP_THUMBNAIL_WIDTH))
+            baseimage.thumbnail(thumbsize,Image.ANTIALIAS)
+            thumbnail_orig_filename = os.path.join(settings.MEDIA_ROOT,field.orig_thumbnail_filename)
+            baseimage.save(thumbnail_orig_filename)
             
-            cropped_image.load()
+            #Generate cropped image 
+            if field.crop_coords !=None:
+                filename = field.file.name;
+                crop_coords = field.crop_coords
+                
+                #Crop the image
+                baseimage = Image.open(filename, 'r')
+                cropped_image = baseimage.crop((crop_coords.x1, crop_coords.y1, crop_coords.x2, crop_coords.y2))
+                if self.image_height and self.image_width:
+                    cropped_image = cropped_image.resize((self.image_width,self.image_height),Image.ANTIALIAS)
+                
+                cropped_image.load()
+                
+                #Save the cropped image
+                cropped_filename = os.path.join(settings.MEDIA_ROOT,field.cropped_filename)
+                cropped_image.save(cropped_filename)
+        
             
-            #Save the cropped image
-            cropped_filename = os.path.join(settings.MEDIA_ROOT,field.cropped_filename)
-            cropped_image.save(cropped_filename)
             
     
     def formfield(self, **kwargs):
