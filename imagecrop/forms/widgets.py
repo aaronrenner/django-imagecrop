@@ -21,7 +21,7 @@ class ImageCropCoordinatesInput(Widget):
     
     class Media:
         js = (
-              "/static/imagecrop/js/jquery.min.js",
+              settings.ADMIN_MEDIA_PREFIX+"js/jquery.min.js",
               "/static/imagecrop/js/jquery.Jcrop.min.js",
               )
         css = {
@@ -80,38 +80,51 @@ class ImageCropCoordinatesInput(Widget):
             t = Template('''
             <script language="Javascript">
                 jQuery(window).load(function(){
+                    jQuery('#{{id}}-imagecrop-popup-link').click(function(){
+                        var popup = window.open('{% url imagecrop.views.imagecrop_popup %}','','height=700,width=650');
+                        popup.jCropArgs = {
+                            {%spaceless%}
+                            {% if boxWidth %}
+                            boxWidth:{{boxWidth}},
+                            {%endif%}
+                            {% if boxHeight %}
+                            boxHeight:{{boxHeight}},
+                            {%endif %}
+                            {%endspaceless%}
+                            aspectRatio: {{aspectRatio}},
+                            trueSize:[{{trueWidth}},{{trueHeight}}]
+                        };
+                        
+                        popup.image_orig_thumbnail='{{imageurl}}';
+                        popup.image_thumb_height={{orig_thumbnail_image.height}};
+                        popup.image_thumb_width={{orig_thumbnail_image.width}};
+                        popup.image_selected_coords=[{{coords.x1}},{{coords.y1}},{{coords.x2}},{{coords.y2}}];
+                        popup.crop_update_callback=updateCoords;
+                    
+                    });
+                
                     function updateCoords(coords){
                         jQuery('#{{id}}_x1').val(coords.x);
                         jQuery('#{{id}}_y1').val(coords.y);
                         jQuery('#{{id}}_x2').val(coords.x2);
                         jQuery('#{{id}}_y2').val(coords.y2);
+                        
+                        //Updating CSS
+                        jQuery('#{{id}}-imagecrop-popup-block').css('background-color','yellow');
+                        jQuery('#{{id}}-imagecrop-popup-message').html('Save Required')
                     };
                     
-                    
-                    
-                    var api = jQuery.Jcrop('#{{id}}',{
-                        {%spaceless%}
-                        {% if boxWidth %}
-                        boxWidth:{{boxWidth}},
-                        {%endif%}
-                        {% if boxHeight %}
-                        boxHeight:{{boxHeight}},
-                        {%endif %}
-                        {%endspaceless%}
-                        aspectRatio: {{aspectRatio}},
-                        onChange: updateCoords,
-                        onSelect: updateCoords,
-                        trueSize:[{{trueWidth}},{{trueHeight}}]
-                    });
-                    {% if coords %}
-                    api.setSelect( [{{coords.x1}},{{coords.y1}},{{coords.x2}},{{coords.y2}}]);
-                    {% endif %}
-                });
-                
-                
+                });  
                 
             </script>
-            <img src="{{imageurl}}" height="{{thumbnail_image.height}}" width="{{thumbnail_image.width}}" id='{{id}}' />
+            <div id="{{id}}-imagecrop-popup-block" style="display:block; text-align:center;">
+            <a id="{{id}}-imagecrop-popup-link" href="javascript:return True;">
+            <img src="{{cropped_thumbnail_url}}" id='{{id}}' />
+            <div id="{{id}}-imagecrop-popup-message" style="display:block">
+            Click to adjust cropping
+            </div>
+            </a>
+            </div>
             ''')
             
             orig_thumbnail_path = os.path.join(settings.MEDIA_ROOT, value.orig_thumbnail_filename)
@@ -119,18 +132,25 @@ class ImageCropCoordinatesInput(Widget):
             if not os.path.exists(orig_thumbnail_path):
                 value.generate_orig_thumbnail_file()
             
-            thumbnail_image = ImageFile(open(orig_thumbnail_path))
+            orig_thumbnail_image = ImageFile(open(orig_thumbnail_path))
+            
+            cropped_thumbnail_path = os.path.join(settings.MEDIA_ROOT, value.cropped_thumbnail_filename)
+            if not os.path.exists(cropped_thumbnail_path):
+                value.generate_cropped_thumbnail_file()
+            
+            
             
             c = Context({
                    "id":id_,
                    "aspectRatio":aspect_ratio,
                    "imageurl": settings.MEDIA_URL + value.orig_thumbnail_filename,
+                   "cropped_thumbnail_url": settings.MEDIA_URL + value.cropped_thumbnail_filename,
                    "coords": value.crop_coords,
                    "boxWidth": self.crop_image_width,
                    "boxHeight":self.crop_image_height,
                    "trueWidth":value.width,
                    "trueHeight":value.height,
-                   "thumbnail_image":thumbnail_image
+                   "orig_thumbnail_image":orig_thumbnail_image
                    })
             output.append(t.render(c))
            

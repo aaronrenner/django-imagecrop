@@ -43,6 +43,17 @@ class CroppedImageFieldFile(FieldFile, CroppedImageFile):
     
     cropped_filename = property(_get_cropped_filename)
     
+    def _get_cropped_thumbnail_filename(self):
+        '''
+        Gets the filename for the cropped file
+        '''
+        if self.name:
+            filename_parts = os.path.splitext(self.name)
+            return "%s.thumb-cropped%s" % (filename_parts[0], filename_parts[1])
+        return None
+    
+    cropped_thumbnail_filename = property(_get_cropped_thumbnail_filename)
+    
     def _get_orig_thumbnail_filename(self):
         '''
         Gets the thumbnail of the original image that is used for the
@@ -63,11 +74,27 @@ class CroppedImageFieldFile(FieldFile, CroppedImageFile):
         #generate original thumbnail
         if self.name:
             baseimage = Image.open(os.path.join(settings.MEDIA_ROOT, self.name), 'r')
-            thumbsize = (getattr(settings, "CROP_THUMBNAIL_HEIGHT", CroppedImageField.DEFAULT_CROP_THUMBNAIL_HEIGHT),
-                         getattr(settings, "CROP_THUMBNAIL_WIDTH", CroppedImageField.DEFAULT_CROP_THUMBNAIL_WIDTH))
+            thumbsize = (getattr(settings, "ORIG_THUMBNAIL_HEIGHT", CroppedImageField.DEFAULT_ORIG_THUMBNAIL_HEIGHT),
+                         getattr(settings, "ORIG_THUMBNAIL_WIDTH", CroppedImageField.DEFAULT_ORIG_THUMBNAIL_WIDTH))
             baseimage.thumbnail(thumbsize, Image.ANTIALIAS)
             thumbnail_orig_filename = os.path.join(settings.MEDIA_ROOT, self.orig_thumbnail_filename)
             baseimage.save(thumbnail_orig_filename)
+            
+    def generate_cropped_thumbnail_file(self):
+        '''
+        Generates a thumbnail of the cropped file
+        '''
+        
+        cropped_file_path= os.path.join(settings.MEDIA_ROOT,self.cropped_filename)
+        
+        #generate original thumbnail
+        if self.cropped_filename and os.path.exists(cropped_file_path):
+            baseimage = Image.open(cropped_file_path, 'r')
+            thumbsize = (getattr(settings, "CROP_THUMBNAIL_HEIGHT", CroppedImageField.DEFAULT_CROPPED_THUMBNAIL_HEIGHT),
+                         getattr(settings, "CROP_THUMBNAIL_WIDTH", CroppedImageField.DEFAULT_CROPPED_THUMBNAIL_WIDTH))
+            baseimage.thumbnail(thumbsize, Image.ANTIALIAS)
+            thumbnail_cropped_filename = os.path.join(settings.MEDIA_ROOT, self.cropped_thumbnail_filename)
+            baseimage.save(thumbnail_cropped_filename)
             
     def apply_default_cropping(self, image_width=None, image_height=None):
         '''
@@ -154,8 +181,10 @@ class CroppedImageFileDescriptor(FileDescriptor):
 
 class CroppedImageField (models.FileField):
     
-    DEFAULT_CROP_THUMBNAIL_HEIGHT = 600
-    DEFAULT_CROP_THUMBNAIL_WIDTH = 600
+    DEFAULT_ORIG_THUMBNAIL_HEIGHT = 600
+    DEFAULT_ORIG_THUMBNAIL_WIDTH = 600
+    DEFAULT_CROPPED_THUMBNAIL_HEIGHT = 150
+    DEFAULT_CROPPED_THUMBNAIL_WIDTH = 150
     
     attr_class = CroppedImageFieldFile
     
@@ -239,6 +268,9 @@ class CroppedImageField (models.FileField):
                 #Save the cropped image
                 cropped_filename = os.path.join(settings.MEDIA_ROOT, field.cropped_filename)
                 cropped_image.save(cropped_filename)
+                
+            #Generate Thumbnail of cropped image
+            field.generate_cropped_thumbnail_file()
         
             
             
