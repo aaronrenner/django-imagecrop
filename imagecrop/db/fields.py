@@ -232,13 +232,18 @@ class CroppedImageField (models.FileField):
         field = getattr(instance, self.attname)
         
         if field:
-            meta_filename = field.meta_filename
-            if meta_filename and os.path.exists(meta_filename):
-                os.remove(meta_filename)
+            self._remove_file(field.meta_filename)
+            self._remove_file(os.path.join(settings.MEDIA_ROOT, field.orig_thumbnail_filename))
+            self._remove_file(os.path.join(settings.MEDIA_ROOT, field.cropped_thumbnail_filename))
+            self._remove_file(os.path.join(settings.MEDIA_ROOT, field.cropped_filename))
                 
-            cropped_filename = os.path.join(settings.MEDIA_ROOT, field.cropped_filename)
-            if cropped_filename and os.path.exists(cropped_filename):
-                os.remove(cropped_filename)
+    def _remove_file(self,filepath):
+        '''
+        Removes a file based on the path
+        '''
+        if filepath and os.path.exists(filepath):
+                os.remove(filepath)
+        
       
     def _crop_image(self, sender, instance, **kwargs):
         '''
